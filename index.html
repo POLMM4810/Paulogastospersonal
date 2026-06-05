@@ -830,50 +830,39 @@ function addNota(){
 
 // ─── ICON ────────────────────────────────────────────────────────────────
 (function(){
-  try {
-    var c=document.createElement("canvas");c.width=180;c.height=180;
-    var ctx=c.getContext("2d");
-    // Background circle
-    var bg=ctx.createRadialGradient(90,75,10,90,90,90);
-    bg.addColorStop(0,"#1A2040");bg.addColorStop(1,"#06060E");
-    ctx.fillStyle=bg;ctx.beginPath();ctx.arc(90,90,90,0,Math.PI*2);ctx.fill();
-    // Gold border
-    ctx.strokeStyle="#D4A830";ctx.lineWidth=5;
-    ctx.beginPath();ctx.arc(90,90,86,0,Math.PI*2);ctx.stroke();
-    // Inner glow
-    var glow=ctx.createRadialGradient(90,70,5,90,70,80);
-    glow.addColorStop(0,"rgba(74,140,191,0.25)");glow.addColorStop(1,"rgba(74,140,191,0)");
-    ctx.fillStyle=glow;ctx.beginPath();ctx.arc(90,90,86,0,Math.PI*2);ctx.fill();
-    // Bar chart — simple rects (no roundRect, Safari compatible)
-    function bar(x,y,w,h,col){ctx.fillStyle=col;ctx.fillRect(x,y,w,h);}
-    bar(22,115,16,42,"#2A6A9A");
-    bar(44,94,16,63,"#3A9A3A");
-    bar(66,105,16,52,"#C8A030");
-    bar(88,80,16,77,"#3A9A3A");
-    // Trend line
-    ctx.strokeStyle="#E8C87A";ctx.lineWidth=3;ctx.lineCap="round";ctx.lineJoin="round";
-    ctx.beginPath();ctx.moveTo(30,112);ctx.lineTo(52,90);ctx.lineTo(74,101);ctx.lineTo(96,77);ctx.stroke();
-    // Trend dots
-    var pts=[[30,112],[52,90],[74,101],[96,77]];
-    pts.forEach(function(p){ctx.fillStyle="#E8C87A";ctx.beginPath();ctx.arc(p[0],p[1],4.5,0,Math.PI*2);ctx.fill();});
-    // P monogram circle (top-left)
-    ctx.fillStyle="rgba(4,4,18,0.85)";
-    ctx.beginPath();ctx.arc(46,44,24,0,Math.PI*2);ctx.fill();
-    ctx.strokeStyle="rgba(74,140,191,0.6)";ctx.lineWidth=1.5;
-    ctx.beginPath();ctx.arc(46,44,24,0,Math.PI*2);ctx.stroke();
-    ctx.fillStyle="#5A9CD4";ctx.font="bold 32px serif";
-    ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText("P",46,45);
-    // Euro coin (top-right)
-    ctx.fillStyle="#D4A830";
-    ctx.beginPath();ctx.arc(133,34,19,0,Math.PI*2);ctx.fill();
-    ctx.fillStyle="#060610";
-    ctx.beginPath();ctx.arc(133,34,14,0,Math.PI*2);ctx.fill();
-    ctx.fillStyle="#D4A830";ctx.font="bold 18px serif";
-    ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText("€",133,35);
-    var url=c.toDataURL("image/png");
-    var l=document.createElement("link");l.rel="apple-touch-icon";l.href=url;document.head.appendChild(l);
-    var f=document.createElement("link");f.rel="icon";f.type="image/png";f.href=url;document.head.appendChild(f);
-  } catch(e){ console.warn("Icon generation failed:",e); }
+  var c=document.createElement("canvas");c.width=180;c.height=180;
+  var ctx=c.getContext("2d");
+  // Background — dark blue
+  var bg=ctx.createRadialGradient(90,90,10,90,90,90);
+  bg.addColorStop(0,"#1A2040");bg.addColorStop(1,"#06060E");
+  ctx.fillStyle=bg;ctx.beginPath();ctx.arc(90,90,90,0,Math.PI*2);ctx.fill();
+  // Gold border ring
+  ctx.strokeStyle="#D4A830";ctx.lineWidth=5;
+  ctx.beginPath();ctx.arc(90,90,86,0,Math.PI*2);ctx.stroke();
+  // Bar chart bars
+  ctx.fillStyle="#2A6AA0";ctx.fillRect(20,118,16,40);
+  ctx.fillStyle="#3A9A3A";ctx.fillRect(44,96,16,62);
+  ctx.fillStyle="#C8A030";ctx.fillRect(68,108,16,50);
+  ctx.fillStyle="#3A9A3A";ctx.fillRect(92,80,16,78);
+  // Trend line
+  ctx.strokeStyle="#F0D060";ctx.lineWidth=3;ctx.lineCap="round";ctx.lineJoin="round";
+  ctx.beginPath();ctx.moveTo(28,116);ctx.lineTo(52,94);ctx.lineTo(76,106);ctx.lineTo(100,78);ctx.stroke();
+  // Trend dots
+  ctx.fillStyle="#F0D060";
+  ctx.beginPath();ctx.arc(28,116,4,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(52,94,4,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(76,106,4,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(100,78,4,0,Math.PI*2);ctx.fill();
+  // P circle top left
+  ctx.fillStyle="#08081A";ctx.beginPath();ctx.arc(46,44,22,0,Math.PI*2);ctx.fill();
+  ctx.strokeStyle="#4A8CBF";ctx.lineWidth=2;ctx.beginPath();ctx.arc(46,44,22,0,Math.PI*2);ctx.stroke();
+  ctx.fillStyle="#4A8CBF";ctx.font="bold 28px Georgia,serif";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText("P",46,45);
+  // Euro coin top right
+  ctx.fillStyle="#D4A830";ctx.beginPath();ctx.arc(134,36,18,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle="#3A2000";ctx.font="bold 20px Georgia,serif";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText("€",134,37);
+  var url=c.toDataURL("image/png");
+  var l=document.createElement("link");l.rel="apple-touch-icon";l.href=url;document.head.appendChild(l);
+  var f=document.createElement("link");f.rel="icon";f.href=url;document.head.appendChild(f);
 })();
 </script>
 </body>
