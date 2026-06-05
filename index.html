@@ -255,10 +255,7 @@ function esc(s){return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").
 function seedMonth(){
   var g={};CATS.forEach(function(c){g[c.id]=[];});
   // Seed with May 2026 data
-  g.ocio=[
-    {id:uid(),concepto:"Ifevi",importe:76,nota:""},
-    {id:uid(),concepto:"Taxis",importe:8,nota:""}
-  ];
+  g.ocio=[];
   g.coche=[
     {id:uid(),concepto:"Gasolina 02/05",importe:41,nota:"1,44€/l · 37,14L · 305km · 100.481km"},
     {id:uid(),concepto:"Gasolina 14/05",importe:70,nota:"1,48€/l · 47,17L · 691km · 101.184km"},
@@ -829,6 +826,14 @@ function saveNota(id){
   S.editId=null;saveData(d);
 }
 function delNota(id){var d=cur();d.recordatorios=d.recordatorios.filter(function(r){return r.id!==id;});saveData(d);}
+function clearOcio(){
+  if(!confirm("¿Borrar todos los gastos de Ocio de este mes?"))return;
+  var d=cur();d.gastos.ocio=[];saveData(d);
+}
+function resetMonth(){
+  if(!confirm("¿Borrar TODOS los gastos de este mes y empezar desde cero?"))return;
+  var d=emptyMonth();saveData(d);
+}
 function addNota(){
   if(!S.newRow.texto)return;
   var d=cur();if(!d.recordatorios)d.recordatorios=[];
@@ -871,7 +876,11 @@ function renderGestionar(){
     +rows
     +'<div style="padding:12px 16px;border-top:1px solid #0E0E1E;">'
     +'<div class="lbl" style="color:#2A2A3A;margin-bottom:8px;">CATEGORÍAS FIJAS</div>'
-    +baseRows+'</div></div>';
+    +baseRows+'<div style="padding:14px 16px;border-top:1px solid #0E0E1E;margin-top:6px;">'
+    +'<div class="lbl" style="color:#333;margin-bottom:10px;">🗑️ HERRAMIENTAS</div>'
+    +'<button onclick="clearOcio()" style="width:100%;background:#1A0A0A;color:#F0A0A0;border:1px solid #3A1A1A;border-radius:8px;padding:10px;font-size:13px;cursor:pointer;margin-bottom:8px;">Borrar gastos Ocio de este mes</button>'
+    +'<button onclick="resetMonth()" style="width:100%;background:#1A0A0A;color:#B85450;border:1px solid #3A1A1A;border-radius:8px;padding:10px;font-size:13px;cursor:pointer;">Resetear mes completo</button>'
+    +'</div></div>';
 }
 
 function addCatP(){
