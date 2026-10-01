@@ -117,6 +117,16 @@ input, select, textarea, input::placeholder {
   border-radius: 8px;
 }
 select option { background: #16162A !important; color: #E8E0D0 !important; }
+
+/* Face ID button */
+.faceid-btn{margin-top:20px;background:none;border:1.5px solid #2A2A40;border-radius:14px;padding:12px 28px;color:#888;font-size:13px;font-family:Georgia,serif;cursor:pointer;display:flex;align-items:center;gap:8px;transition:all .2s;}
+.faceid-btn:active{background:#1A1A2E;}
+.faceid-btn.available{border-color:var(--gold);color:var(--gold);}
+
+/* Undo panel */
+#undo-panel{position:fixed;bottom:80px;right:12px;left:12px;max-width:340px;margin:0 auto;background:#0E0E22;border:1px solid #2A2A40;border-radius:14px;padding:12px 14px;z-index:999;opacity:0;transition:opacity .3s;pointer-events:none;box-shadow:0 4px 20px rgba(0,0,0,.5);}
+#undo-panel.show{opacity:1;pointer-events:auto;}
+
 </style>
 </head>
 <body>
@@ -159,6 +169,10 @@ select option { background: #16162A !important; color: #E8E0D0 !important; }
     </div>
     <input id="pin-field" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="    " style="font-size:32px;letter-spacing:16px;width:180px;text-align:center;background:#0E0E22;color:#C17D3C;border:1.5px solid #2A2A40;border-radius:14px;padding:14px 20px;caret-color:#C17D3C;outline:none;">
     <div id="pin-err"></div>
+    <button id="faceid-btn" class="faceid-btn" onclick="useBiometric()" style="display:none;opacity:0;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M7 3H5a2 2 0 0 0-2 2v2M17 3h2a2 2 0 0 1 2 2v2M7 21H5a2 2 0 0 1-2-2v-2M17 21h2a2 2 0 0 0 2-2v-2"/><circle cx="12" cy="12" r="3"/><path d="M9 9a4 4 0 0 1 6 0M9 15a4 4 0 0 0 6 0"/></svg>
+      Face ID / Touch ID
+    </button>
   </div>
 </div>
 
@@ -380,6 +394,171 @@ function setSyncing(v){
 }
 function setTxt(t){var el=document.getElementById("sync-txt");if(el)el.textContent=t;}
 
+
+// ─── BIOMETRIC (Face ID / Touch ID) ──────────────────────────────────────────
+var CRED_LS = "pp_biometric_id";
+
+function initBiometric(){
+  var btn = document.getElementById("faceid-btn");
+  if(!btn) return;
+  if(!window.PublicKeyCredential){
+    btn.style.display = "none";
+    return;
+  }
+  PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()
+    .then(function(available){
+      if(available){
+        btn.style.display = "flex";
+        btn.style.opacity = "1";
+      } else {
+        btn.style.display = "none";
+      }
+    })
+    .catch(function(){ btn.style.display = "none"; });
+}
+
+function useBiometric(){
+  var btn = document.getElementById("faceid-btn");
+  var storedId = null;
+  try { storedId = localStorage.getItem(CRED_LS); } catch(e){}
+
+  if(storedId){
+    // Authenticate with existing credential
+    var idBytes;
+    try {
+      idBytes = Uint8Array.from(atob(storedId), function(c){ return c.charCodeAt(0); });
+    } catch(e) {
+      // Bad stored data, re-register
+      localStorage.removeItem(CRED_LS);
+      useBiometric();
+      return;
+    }
+    var challenge = new Uint8Array(32);
+    crypto.getRandomValues(challenge);
+    navigator.credentials.get({
+      publicKey: {
+        challenge: challenge,
+        rpId: location.hostname,
+        allowCredentials: [{ type: "public-key", id: idBytes, transports: ["internal"] }],
+        userVerification: "required",
+        timeout: 60000
+      }
+    }).then(function(cred){
+      if(cred){ unlock(); }
+    }).catch(function(err){
+      // If credential not found, re-register
+      if(err.name === "NotAllowedError" || err.name === "InvalidStateError"){
+        localStorage.removeItem(CRED_LS);
+        registerBiometric();
+      }
+    });
+  } else {
+    registerBiometric();
+  }
+}
+
+function registerBiometric(){
+  var challenge = new Uint8Array(32);
+  crypto.getRandomValues(challenge);
+  var userId = new Uint8Array(8);
+  crypto.getRandomValues(userId);
+
+  navigator.credentials.create({
+    publicKey: {
+      challenge: challenge,
+      rp: { name: "Gastos App", id: location.hostname },
+      user: { id: userId, name: "usuario", displayName: "Usuario" },
+      pubKeyCredParams: [
+        { alg: -7,   type: "public-key" },
+        { alg: -257, type: "public-key" }
+      ],
+      authenticatorSelection: {
+        authenticatorAttachment: "platform",
+        userVerification: "required",
+        residentKey: "discouraged"
+      },
+      timeout: 60000,
+      attestation: "none"
+    }
+  }).then(function(cred){
+    var idB64 = btoa(String.fromCharCode.apply(null, new Uint8Array(cred.rawId)));
+    try { localStorage.setItem(CRED_LS, idB64); } catch(e){}
+    unlock();
+  }).catch(function(err){
+    // Show error briefly on the button
+    var btn = document.getElementById("faceid-btn");
+    if(btn){
+      var orig = btn.innerHTML;
+      btn.innerHTML = "⚠️ No disponible en este dispositivo";
+      btn.style.color = "#F0A0A0";
+      setTimeout(function(){ btn.innerHTML = orig; btn.style.color = ""; }, 3000);
+    }
+  });
+}
+
+// ─── UNDO (historial del día) ─────────────────────────────────────────────
+var undoHistory = [];  // array de {data, label, ts}
+var undoTimer = null;
+
+function pushUndo(snapshot, label){
+  // Guardar copia del mes actual antes del borrado
+  undoHistory.push({
+    data: JSON.parse(JSON.stringify(snapshot)),
+    label: label,
+    ts: Date.now()
+  });
+  // Limpiar entradas de más de 24h
+  var cutoff = Date.now() - 86400000;
+  undoHistory = undoHistory.filter(function(u){return u.ts > cutoff;});
+  showUndoPanel();
+}
+
+function showUndoPanel(){
+  if(undoTimer)clearTimeout(undoTimer);
+  var panel = document.getElementById("undo-panel");
+  if(!panel){
+    panel = document.createElement("div");
+    panel.id = "undo-panel";
+    document.body.appendChild(panel);
+  }
+  renderUndoPanel(panel);
+  panel.classList.add("show");
+  undoTimer = setTimeout(function(){
+    panel.classList.remove("show");
+  }, 6000);
+}
+
+function renderUndoPanel(panel){
+  if(!panel)return;
+  var items = undoHistory.slice().reverse().slice(0,5); // últimos 5
+  var html = '<div style="font-size:9px;color:#555;letter-spacing:2px;font-family:monospace;margin-bottom:8px;">BORRADOS HOY</div>';
+  items.forEach(function(u, i){
+    var ago = Math.round((Date.now()-u.ts)/1000);
+    var agoStr = ago < 60 ? "ahora" : Math.round(ago/60)+"min";
+    html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;border-bottom:1px solid #1A1A2E;">'
+      +'<span style="font-size:11px;color:#AAA;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+u.label+'</span>'
+      +'<span style="font-size:10px;color:#444;margin:0 8px;">'+agoStr+'</span>'
+      +'<button onclick="doUndo('+( undoHistory.length-1-i)+')" style="background:var(--gold);border:none;border-radius:6px;padding:4px 10px;color:#fff;font-family:Georgia,serif;font-size:11px;cursor:pointer;flex-shrink:0;">↩</button>'
+      +'</div>';
+  });
+  html += '<button onclick="document.getElementById(\'undo-panel\').classList.remove(\'show\')" style="margin-top:8px;width:100%;background:none;border:none;color:#444;font-size:11px;cursor:pointer;font-family:Georgia,serif;">CERRAR</button>';
+  panel.innerHTML = html;
+}
+
+function doUndo(idx){
+  if(idx < 0 || idx >= undoHistory.length)return;
+  if(undoTimer)clearTimeout(undoTimer);
+  S.months[S.curKey] = undoHistory[idx].data;
+  undoHistory.splice(idx, 1); // remove recovered item
+  var panel = document.getElementById("undo-panel");
+  if(undoHistory.length === 0){
+    if(panel)panel.classList.remove("show");
+  } else {
+    renderUndoPanel(panel);
+  }
+  saveLocal(); renderAll(); fbWrite();
+}
+
 // ─── PIN ───────────────────────────────────────────────────────────────────
 (function(){
   var field=document.getElementById("pin-field");
@@ -413,6 +592,7 @@ function setTxt(t){var el=document.getElementById("sync-txt");if(el)el.textConte
   document.getElementById("pin").addEventListener("click",function(e){
     if(e.target!==field)field.focus();
   });
+  initBiometric();
 })();
 
 function unlock(){
@@ -428,15 +608,41 @@ function unlock(){
 
 function launch(){
   var k=nowKey();
-  S.curKey=S.months[k]?k:Object.keys(S.months).sort().reverse()[0]||k;
-  if(!S.months[S.curKey])S.months[S.curKey]=seedMonth();
+  // Use current month if exists, else most recent, else current
+  if(S.months[k]){
+    S.curKey=k;
+  } else {
+    var keys=Object.keys(S.months).sort().reverse();
+    S.curKey=keys.length?keys[0]:k;
+  }
+  // Only seed if truly no months at all
+  if(!S.months[S.curKey]){
+    S.months[S.curKey]=emptyMonth();
+  }
   document.getElementById("app").className="on";
   renderAll();
   startPoll();
 }
 
 // ─── DATA ──────────────────────────────────────────────────────────────────
-function cur(){return S.months[S.curKey]||emptyMonth();}
+function cur(){
+  var d = S.months[S.curKey];
+  if(!d) d = emptyMonth();
+  // Ensure all required fields exist (defensive for old/corrupted months)
+  if(!d.gastos) d.gastos = {};
+  CATS_BASE.forEach(function(c){ if(!d.gastos[c.id]) d.gastos[c.id] = []; });
+  (S.customCats||[]).forEach(function(c){ if(!d.gastos[c.id]) d.gastos[c.id] = []; });
+  if(!d.gasolina) d.gasolina = [];
+  if(!d.apuestas) d.apuestas = {balance_mes:0, acum_anio:0, lineas:[]};
+  if(!d.apuestas.lineas) d.apuestas.lineas = [];
+  if(!d.bankinter) d.bankinter = BANKINTER_BASE.map(function(b){return Object.assign({},b,{pagado:false});});
+  if(!d.sabadell) d.sabadell = SABADELL_BASE.map(function(b){return Object.assign({},b,{pagado:false});});
+  if(!d.notas) d.notas = [];
+  if(!d.meta) d.meta = {presupuesto:1500, bote:0};
+  if(!d.alertas) d.alertas = {};
+  S.months[S.curKey] = d;
+  return d;
+}
 function saveData(d){S.months[S.curKey]=d;saveLocal();renderAll();fbWrite();}
 
 function totals(){
@@ -471,13 +677,17 @@ function toggleMDrop(){
 }
 function renderMList(){
   var keys=Object.keys(S.months).sort().reverse();
-  document.getElementById("mlist").innerHTML=keys.map(function(k){
+  var mlist=document.getElementById("mlist");
+  mlist.innerHTML="";
+  keys.forEach(function(k){
     var p=k.split("-");var lbl=(MESES[parseInt(p[1])-1]+" "+p[0]).toUpperCase();
-    var cur=k===S.curKey;
-    return '<div class="mrow'+(cur?" cur":"")+'" onclick="selMonth(\''+k+'\')">'
-      +'<span>'+lbl+'</span>'+(cur?'<span style="font-size:9px;color:var(--gold);letter-spacing:2px;font-family:monospace;">ACTIVO</span>':'')
-      +'</div>';
-  }).join("");
+    var isCur=k===S.curKey;
+    var div=document.createElement("div");
+    div.className="mrow"+(isCur?" cur":"");
+    div.innerHTML='<span>'+lbl+'</span>'+(isCur?'<span style="font-size:9px;color:var(--gold);letter-spacing:2px;font-family:monospace;">ACTIVO</span>':'');
+    div.onclick=function(key){return function(e){e.stopPropagation();selMonth(key);};}(k);
+    mlist.appendChild(div);
+  });
 }
 function selMonth(k){
   S.curKey=k;S.tab="resumen";
@@ -496,12 +706,21 @@ function hideNMForm(){document.getElementById("nm-form").classList.remove("on");
 function createMonth(){
   var m=document.getElementById("nm-m").value;
   var y=document.getElementById("nm-y").value;
+  if(!m||!y)return;
   var k=y+"-"+String(parseInt(m)+1).padStart(2,"0");
   if(!S.months[k])S.months[k]=emptyMonth();
-  S.curKey=k;S.tab="resumen";
-  document.getElementById("mdrop").classList.remove("on");
-  document.getElementById("marrow").textContent="▼";
-  hideNMForm();saveLocal();fbWrite();renderAll();
+  S.curKey=k;
+  S.tab="resumen";
+  S.editId=null;
+  var mdrop=document.getElementById("mdrop");
+  if(mdrop)mdrop.classList.remove("on");
+  var marrow=document.getElementById("marrow");
+  if(marrow)marrow.textContent="▼";
+  hideNMForm();
+  closeSheets();
+  saveLocal();
+  fbWrite();
+  renderAll();
 }
 
 // ─── RENDER ────────────────────────────────────────────────────────────────
@@ -761,6 +980,7 @@ function addCat(){
   saveLocal();fbWrite();renderAll();
 }
 function delCat(id){
+  var d=cur();pushUndo(d,"Categoría borrada");
   S.customCats=(S.customCats||[]).filter(function(c){return c.id!==id;});
   if(S.tab===id)S.tab="resumen";
   saveLocal();fbWrite();renderAll();
@@ -784,7 +1004,9 @@ function saveEdit(catId,id){
   S.editId=null;saveData(d);
 }
 function delGasto(catId,id){
-  var d=cur();d.gastos[catId]=d.gastos[catId].filter(function(g){return g.id!==id;});saveData(d);
+  var d=cur();var deleted=d.gastos[catId].find(function(g){return g.id===id;});
+  pushUndo(d,"Gasto borrado: "+(deleted?deleted.concepto:""));
+  d.gastos[catId]=d.gastos[catId].filter(function(g){return g.id!==id;});saveData(d);
 }
 function addGasto(catId){
   var imp=parseFloat(String(S.newRow.importe).replace(",","."));
@@ -1144,7 +1366,7 @@ function saveGasEdit(id){
   });
   S.editId=null;saveData(d);
 }
-function delGas(id){var d=cur();d.gasolina=d.gasolina.filter(function(g){return g.id!==id;});saveData(d);}
+function delGas(id){var d=cur();var del=d.gasolina.find(function(g){return g.id===id;});pushUndo(d,"Repostaje borrado: "+(del?del.fecha:""));d.gasolina=d.gasolina.filter(function(g){return g.id!==id;});saveData(d);}
 function addGas(){
   var fecha=document.getElementById("ng-fecha").value;
   var euros=parseFloat(document.getElementById("ng-euros").value);
@@ -1208,7 +1430,7 @@ function saveBetEdit(id){
   var d=cur();d.apuestas.lineas=d.apuestas.lineas.map(function(l){return l.id===id?Object.assign({},l,{desc:S.editRow.desc,resultado:res}):l;});
   S.editId=null;saveData(d);
 }
-function delBet(id){var d=cur();d.apuestas.lineas=d.apuestas.lineas.filter(function(l){return l.id!==id;});saveData(d);}
+function delBet(id){var d=cur();var del=d.apuestas.lineas.find(function(l){return l.id===id;});pushUndo(d,"Apuesta borrada: "+(del?del.desc:""));d.apuestas.lineas=d.apuestas.lineas.filter(function(l){return l.id!==id;});saveData(d);}
 function addBet(){
   var desc=document.getElementById("nb-desc").value;
   var res=parseFloat(String(document.getElementById("nb-res").value).replace(",","."));
@@ -1299,7 +1521,7 @@ function saveNotaP(id){
   var d=cur();d.notas=d.notas.map(function(r){return r.id===id?Object.assign({},r,{texto:S.editRow.texto,tipo:S.editRow.tipo||r.tipo}):r;});
   S.editId=null;saveData(d);
 }
-function delNotaP(id){var d=cur();d.notas=d.notas.filter(function(r){return r.id!==id;});saveData(d);}
+function delNotaP(id){var d=cur();var del=d.notas.find(function(r){return r.id===id;});pushUndo(d,"Nota borrada");d.notas=d.notas.filter(function(r){return r.id!==id;});saveData(d);}
 function addNotaP(){
   var texto=document.getElementById("nn-texto").value;
   if(!texto)return;
