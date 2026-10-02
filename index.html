@@ -127,6 +127,25 @@ select option { background: #16162A !important; color: #E8E0D0 !important; }
 #undo-panel{position:fixed;bottom:80px;right:12px;left:12px;max-width:340px;margin:0 auto;background:#0E0E22;border:1px solid #2A2A40;border-radius:14px;padding:12px 14px;z-index:999;opacity:0;transition:opacity .3s;pointer-events:none;box-shadow:0 4px 20px rgba(0,0,0,.5);}
 #undo-panel.show{opacity:1;pointer-events:auto;}
 
+
+/* Voice input */
+#mic-btn{position:fixed;bottom:75px;right:16px;width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#4A8CBF,#2A5A8A);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:22px;z-index:201;box-shadow:0 4px 15px rgba(74,140,191,.4);transition:all .2s;}
+#mic-btn.recording{background:linear-gradient(135deg,#B85450,#8A2020);animation:micpulse 1s ease-in-out infinite;box-shadow:0 4px 20px rgba(184,84,80,.6);}
+@keyframes micpulse{0%,100%{transform:scale(1);}50%{transform:scale(1.1);}}
+/* Voice modal */
+#voice-modal{position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:500;display:none;align-items:flex-end;justify-content:center;}
+#voice-modal.show{display:flex;}
+#voice-card{background:#0E0E22;border-radius:20px 20px 0 0;width:100%;padding:24px 20px;padding-bottom:calc(24px + env(safe-area-inset-bottom));border-top:1px solid #2A2A40;}
+.voice-status{text-align:center;font-size:12px;color:#555;letter-spacing:2px;margin-bottom:16px;font-family:monospace;}
+.voice-transcript{background:#070718;border-radius:12px;padding:14px;font-size:15px;color:#E8E0D0;min-height:50px;margin-bottom:14px;line-height:1.5;border:1px solid #1A1A2E;}
+.voice-result{background:#0A1A0A;border-radius:12px;padding:14px;margin-bottom:14px;border:1px solid #1A3A1A;display:none;}
+.voice-result.show{display:block;}
+.voice-field{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #1A1A2E;}
+.voice-field:last-child{border-bottom:none;}
+.voice-label{font-size:10px;color:#555;letter-spacing:2px;font-family:monospace;}
+.voice-value{font-size:14px;color:#E8E0D0;font-weight:bold;}
+.voice-actions{display:flex;gap:10px;}
+.voice-actions button{flex:1;padding:12px;border:none;border-radius:10px;font-family:Georgia,serif;font-size:14px;cursor:pointer;}
 </style>
 </head>
 <body>
@@ -226,6 +245,34 @@ select option { background: #16162A !important; color: #E8E0D0 !important; }
   <div id="tabs" style="display:none;"></div>
   <div id="content"></div>
   <nav id="bottom-nav"></nav>
+  <button id="mic-btn" onclick="startVoice()" title="Añadir gasto por voz">🎤</button>
+</div>
+
+<!-- Voice Modal -->
+<div id="voice-modal">
+  <div id="voice-card">
+    <div class="voice-status" id="voice-status">PULSA PARA HABLAR</div>
+    <div class="voice-transcript" id="voice-transcript">Di algo como: "cervezas bar Vidal 12 euros ocio"</div>
+    <div class="voice-result" id="voice-result">
+      <div class="voice-field">
+        <span class="voice-label">CATEGORÍA</span>
+        <span class="voice-value" id="vr-cat">—</span>
+      </div>
+      <div class="voice-field">
+        <span class="voice-label">CONCEPTO</span>
+        <span class="voice-value" id="vr-concepto">—</span>
+      </div>
+      <div class="voice-field">
+        <span class="voice-label">IMPORTE</span>
+        <span class="voice-value" id="vr-importe" style="color:#5AC45A;">—</span>
+      </div>
+    </div>
+    <div class="voice-actions">
+      <button id="va-cancel" onclick="closeVoice()" style="background:#1A1A2E;color:#666;">✕ Cancelar</button>
+      <button id="va-record" onclick="recordVoice()" style="background:#4A8CBF;color:#fff;">🎤 Grabar</button>
+      <button id="va-save" onclick="saveVoiceGasto()" style="background:#27AE60;color:#fff;display:none;">✓ Guardar</button>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -1528,6 +1575,198 @@ function addNotaP(){
   var d=cur();if(!d.notas)d.notas=[];
   d.notas.push({id:uid(),texto:texto,tipo:document.getElementById("nn-tipo").value||"info"});
   saveData(d);
+}
+
+
+// ─── VOICE INPUT ─────────────────────────────────────────────────────────────
+var voiceRecognition = null;
+var voiceParsed = null;
+
+var CATS_VOICE = [
+  {id:"ocio",     labels:["ocio","cerveza","cervezas","bar","restaurante","cena","comida","taxi","taxis","copa","copas","fiesta","ocio personal","cafe","café"]},
+  {id:"coche",    labels:["coche","gasolina","gasofa","parking","aparcamiento","taller","aceite","ruedas","itv"]},
+  {id:"inversion",labels:["inversión","inversion","btc","bitcoin","bolsa","acción","accion","crypto","fondo"]},
+  {id:"regalos",  labels:["regalo","regalos","cumpleaños","cumpleanos","presente"]},
+  {id:"pelo",     labels:["pelo","peluquería","peluqueria","corte","barbería","barberia","laser","láser"]},
+  {id:"otros",    labels:["otros","otro","fisio","fisioterapia","médico","medico","farmacia","medicina","compra","tablet","móvil","movil","ordenador","ropa"]}
+];
+
+function detectCat(text){
+  var t = text.toLowerCase();
+  for(var i=0;i<CATS_VOICE.length;i++){
+    for(var j=0;j<CATS_VOICE[i].labels.length;j++){
+      if(t.indexOf(CATS_VOICE[i].labels[j])>=0) return CATS_VOICE[i].id;
+    }
+  }
+  // Also check custom cats
+  var custom = S.customCats||[];
+  for(var k=0;k<custom.length;k++){
+    if(t.indexOf(custom[k].label.toLowerCase())>=0) return custom[k].id;
+  }
+  return "otros";
+}
+
+function parseVoiceText(text){
+  // Extract amount - look for number patterns
+  var amountMatch = text.match(/(\d+(?:[.,]\d{1,2})?)\s*(?:euros?|€|eur)?/i);
+  var amount = amountMatch ? parseFloat(amountMatch[1].replace(',','.')) : 0;
+
+  // Remove amount and currency words to get concept
+  var concept = text
+    .replace(/(\d+(?:[.,]\d{1,2})?)\s*(?:euros?|€|eur)?/gi,'')
+    .replace(/(añadir|gasto|en|de|por|el|la|los|las|un|una|unos|unas)/gi,'')
+    .trim()
+    .replace(/\s+/g,' ')
+    .trim();
+
+  // Capitalize first letter
+  if(concept) concept = concept.charAt(0).toUpperCase() + concept.slice(1);
+
+  var catId = detectCat(text);
+  var catObj = CATS_BASE.concat(S.customCats||[]).find(function(c){return c.id===catId;});
+
+  return {
+    catId: catId,
+    catLabel: catObj ? catObj.label : catId,
+    concept: concept || text,
+    amount: amount
+  };
+}
+
+function startVoice(){
+  document.getElementById("voice-modal").classList.add("show");
+  document.getElementById("voice-transcript").textContent = 'Di algo como: "cervezas bar Vidal 12 euros ocio"';
+  document.getElementById("voice-result").classList.remove("show");
+  document.getElementById("va-save").style.display="none";
+  document.getElementById("va-record").style.display="inline-block";
+  document.getElementById("voice-status").textContent = "PULSA GRABAR PARA HABLAR";
+  voiceParsed = null;
+}
+
+function closeVoice(){
+  if(voiceRecognition){try{voiceRecognition.stop();}catch(e){}}
+  voiceRecognition = null;
+  document.getElementById("voice-modal").classList.remove("show");
+  document.getElementById("mic-btn").classList.remove("recording");
+}
+
+function recordVoice(){
+  var SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(!SpeechRec){
+    document.getElementById("voice-transcript").textContent = "⚠️ Tu navegador no soporta reconocimiento de voz. Usa Safari en iOS o Chrome.";
+    return;
+  }
+
+  voiceRecognition = new SpeechRec();
+  voiceRecognition.lang = "es-ES";
+  voiceRecognition.continuous = false;
+  voiceRecognition.interimResults = false;
+
+  document.getElementById("voice-status").textContent = "🔴 GRABANDO... HABLA AHORA";
+  document.getElementById("mic-btn").classList.add("recording");
+  document.getElementById("va-record").textContent = "⏹ Parar";
+  document.getElementById("va-record").onclick = function(){
+    try{voiceRecognition.stop();}catch(e){}
+  };
+
+  voiceRecognition.onresult = function(e){
+    var text = e.results[0][0].transcript;
+    document.getElementById("voice-transcript").textContent = '"' + text + '"';
+    document.getElementById("voice-status").textContent = "PROCESANDO...";
+    processVoiceText(text);
+  };
+
+  voiceRecognition.onerror = function(e){
+    document.getElementById("voice-status").textContent = "⚠️ ERROR: " + e.error;
+    document.getElementById("mic-btn").classList.remove("recording");
+    document.getElementById("va-record").textContent = "🎤 Grabar";
+    document.getElementById("va-record").onclick = recordVoice;
+  };
+
+  voiceRecognition.onend = function(){
+    document.getElementById("mic-btn").classList.remove("recording");
+    document.getElementById("va-record").textContent = "🎤 Grabar de nuevo";
+    document.getElementById("va-record").onclick = recordVoice;
+  };
+
+  voiceRecognition.start();
+}
+
+function processVoiceText(text){
+  // Try Claude API for smart parsing
+  fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({
+      model: "claude-sonnet-4-6",
+      max_tokens: 200,
+      system: "Extrae gastos personales. Categorias: ocio, coche, inversion, regalos, pelo, otros. Responde SOLO con JSON: {catId, concept, amount}",
+      messages: [{role:'user', content: 'Texto: [' + text + ']. Devuelve JSON con catId (ocio|coche|inversion|regalos|pelo|otros), concept y amount.'}]
+    })
+  })
+  .then(function(r){return r.json();})
+  .then(function(data){
+    try{
+      var content = data.content && data.content[0] && data.content[0].text;
+      var clean = content.replace(/```json|```/g,'').trim();
+      var parsed = JSON.parse(clean);
+      if(parsed.catId && parsed.concept && parsed.amount){
+        var catObj = CATS_BASE.concat(S.customCats||[]).find(function(c){return c.id===parsed.catId;});
+        voiceParsed = {
+          catId: parsed.catId,
+          catLabel: catObj ? catObj.label : parsed.catId,
+          concept: parsed.concept,
+          amount: parsed.amount
+        };
+        showVoiceResult(voiceParsed);
+        return;
+      }
+    }catch(e){}
+    // Fallback to local parsing
+    voiceParsed = parseVoiceText(text);
+    showVoiceResult(voiceParsed);
+  })
+  .catch(function(){
+    // Fallback to local parsing if API fails
+    voiceParsed = parseVoiceText(text);
+    showVoiceResult(voiceParsed);
+  });
+}
+
+function showVoiceResult(parsed){
+  document.getElementById("voice-status").textContent = "¿ES CORRECTO?";
+  document.getElementById("vr-cat").textContent = parsed.catLabel.toUpperCase();
+  document.getElementById("vr-concepto").textContent = parsed.concept;
+  document.getElementById("vr-importe").textContent = fmt(parsed.amount);
+  document.getElementById("voice-result").classList.add("show");
+  document.getElementById("va-save").style.display = "inline-block";
+  document.getElementById("va-record").textContent = "🔄 Repetir";
+  document.getElementById("va-record").onclick = function(){
+    document.getElementById("voice-result").classList.remove("show");
+    document.getElementById("va-save").style.display="none";
+    recordVoice();
+  };
+}
+
+function saveVoiceGasto(){
+  if(!voiceParsed || !voiceParsed.amount) return;
+  var d = cur();
+  if(!d.gastos[voiceParsed.catId]) d.gastos[voiceParsed.catId] = [];
+  d.gastos[voiceParsed.catId].push({
+    id: uid(),
+    concepto: voiceParsed.concept,
+    importe: voiceParsed.amount,
+    nota: ""
+  });
+  saveData(d);
+  closeVoice();
+  // Show confirmation
+  var toast = document.createElement("div");
+  toast.style.cssText = "position:fixed;top:80px;left:50%;transform:translateX(-50%);background:#1A3A1A;border:1px solid #2A5A2A;border-radius:12px;padding:10px 20px;color:#5AC45A;font-size:13px;z-index:999;white-space:nowrap;";
+  toast.textContent = "✓ " + voiceParsed.concept + " — " + fmt(voiceParsed.amount) + " añadido";
+  document.body.appendChild(toast);
+  setTimeout(function(){toast.remove();}, 3000);
+  voiceParsed = null;
 }
 
 // ─── ICON ──────────────────────────────────────────────────────────────────
