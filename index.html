@@ -130,22 +130,23 @@ select option { background: #16162A !important; color: #E8E0D0 !important; }
 
 /* Voice input */
 #mic-btn{position:fixed;bottom:75px;right:16px;width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#4A8CBF,#2A5A8A);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:22px;z-index:201;box-shadow:0 4px 15px rgba(74,140,191,.4);transition:all .2s;}
-#mic-btn.recording{background:linear-gradient(135deg,#B85450,#8A2020);animation:micpulse 1s ease-in-out infinite;box-shadow:0 4px 20px rgba(184,84,80,.6);}
-@keyframes micpulse{0%,100%{transform:scale(1);}50%{transform:scale(1.1);}}
+#mic-btn:active{transform:scale(.95);}
 /* Voice modal */
-#voice-modal{position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:500;display:none;align-items:flex-end;justify-content:center;}
+#voice-modal{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:500;display:none;align-items:flex-end;justify-content:center;}
 #voice-modal.show{display:flex;}
-#voice-card{background:#0E0E22;border-radius:20px 20px 0 0;width:100%;padding:24px 20px;padding-bottom:calc(24px + env(safe-area-inset-bottom));border-top:1px solid #2A2A40;}
-.voice-status{text-align:center;font-size:12px;color:#555;letter-spacing:2px;margin-bottom:16px;font-family:monospace;}
-.voice-transcript{background:#070718;border-radius:12px;padding:14px;font-size:15px;color:#E8E0D0;min-height:50px;margin-bottom:14px;line-height:1.5;border:1px solid #1A1A2E;}
-.voice-result{background:#0A1A0A;border-radius:12px;padding:14px;margin-bottom:14px;border:1px solid #1A3A1A;display:none;}
+#voice-card{background:#0E0E22;border-radius:20px 20px 0 0;width:100%;padding:20px 16px;padding-bottom:calc(20px + env(safe-area-inset-bottom));border-top:1px solid #2A2A40;}
+.voice-status{text-align:center;font-size:10px;color:#555;letter-spacing:3px;margin-bottom:14px;font-family:monospace;}
+.voice-hint{background:#070718;border-radius:10px;padding:12px;font-size:12px;color:#555;margin-bottom:12px;line-height:1.6;border:1px solid #1A1A2E;}
+.voice-hint span{color:#4A8CBF;}
+#voice-input{width:100%;background:#070718;border:1.5px solid #4A8CBF;border-radius:12px;padding:14px;font-size:16px;color:#E8E0D0;font-family:Georgia,serif;resize:none;height:56px;outline:none;box-sizing:border-box;margin-bottom:12px;}
+.voice-result{background:#0A1A0A;border-radius:12px;padding:14px;margin-bottom:12px;border:1px solid #1A3A1A;display:none;}
 .voice-result.show{display:block;}
-.voice-field{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #1A1A2E;}
+.voice-field{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #1A1A2E;}
 .voice-field:last-child{border-bottom:none;}
-.voice-label{font-size:10px;color:#555;letter-spacing:2px;font-family:monospace;}
-.voice-value{font-size:14px;color:#E8E0D0;font-weight:bold;}
-.voice-actions{display:flex;gap:10px;}
-.voice-actions button{flex:1;padding:12px;border:none;border-radius:10px;font-family:Georgia,serif;font-size:14px;cursor:pointer;}
+.voice-label{font-size:9px;color:#555;letter-spacing:2px;font-family:monospace;}
+.voice-value{font-size:13px;color:#E8E0D0;font-weight:bold;}
+.voice-actions{display:flex;gap:8px;}
+.voice-actions button{flex:1;padding:11px;border:none;border-radius:10px;font-family:Georgia,serif;font-size:13px;cursor:pointer;}
 </style>
 </head>
 <body>
@@ -251,8 +252,12 @@ select option { background: #16162A !important; color: #E8E0D0 !important; }
 <!-- Voice Modal -->
 <div id="voice-modal">
   <div id="voice-card">
-    <div class="voice-status" id="voice-status">PULSA PARA HABLAR</div>
-    <div class="voice-transcript" id="voice-transcript">Di algo como: "cervezas bar Vidal 12 euros ocio"</div>
+    <div class="voice-status">🎤 AÑADIR GASTO POR VOZ</div>
+    <div class="voice-hint">
+      Pulsa el campo, luego el 🎤 del teclado y di el gasto.<br>
+      Ej: <span>"cervezas bar Vidal 12 euros"</span> o <span>"gasolina 60 euros"</span>
+    </div>
+    <input id="voice-input" type="text" placeholder="Pulsa aquí y usa el 🎤 del teclado..." autocomplete="off" autocorrect="off" oninput="onVoiceInput(this.value)" onkeydown="if(event.key==='Enter'){event.preventDefault();processVoiceText(this.value);}">
     <div class="voice-result" id="voice-result">
       <div class="voice-field">
         <span class="voice-label">CATEGORÍA</span>
@@ -268,8 +273,8 @@ select option { background: #16162A !important; color: #E8E0D0 !important; }
       </div>
     </div>
     <div class="voice-actions">
-      <button id="va-cancel" onclick="closeVoice()" style="background:#1A1A2E;color:#666;">✕ Cancelar</button>
-      <button id="va-record" onclick="recordVoice()" style="background:#4A8CBF;color:#fff;">🎤 Grabar</button>
+      <button onclick="closeVoice()" style="background:#1A1A2E;color:#666;">✕ Cancelar</button>
+      <button id="va-process" onclick="processVoiceText(document.getElementById('voice-input').value)" style="background:#4A8CBF;color:#fff;">→ Interpretar</button>
       <button id="va-save" onclick="saveVoiceGasto()" style="background:#27AE60;color:#fff;display:none;">✓ Guardar</button>
     </div>
   </div>
@@ -1579,193 +1584,127 @@ function addNotaP(){
 
 
 // ─── VOICE INPUT ─────────────────────────────────────────────────────────────
-var voiceRecognition = null;
 var voiceParsed = null;
+var voiceTimer = null;
 
 var CATS_VOICE = [
-  {id:"ocio",     labels:["ocio","cerveza","cervezas","bar","restaurante","cena","comida","taxi","taxis","copa","copas","fiesta","ocio personal","cafe","café"]},
-  {id:"coche",    labels:["coche","gasolina","gasofa","parking","aparcamiento","taller","aceite","ruedas","itv"]},
-  {id:"inversion",labels:["inversión","inversion","btc","bitcoin","bolsa","acción","accion","crypto","fondo"]},
-  {id:"regalos",  labels:["regalo","regalos","cumpleaños","cumpleanos","presente"]},
-  {id:"pelo",     labels:["pelo","peluquería","peluqueria","corte","barbería","barberia","laser","láser"]},
-  {id:"otros",    labels:["otros","otro","fisio","fisioterapia","médico","medico","farmacia","medicina","compra","tablet","móvil","movil","ordenador","ropa"]}
+  {id:"ocio",      labels:["ocio","cerveza","cervezas","bar","restaurante","cena","taxi","copa","copas","cafe","café","vino","vermut","tapas","discoteca","concierto","cine","theater","teatro","futbol","entrada"]},
+  {id:"coche",     labels:["coche","gasolina","gasofa","parking","aparcamiento","taller","aceite","ruedas","itv","multa","seguro coche","carburante"]},
+  {id:"inversion", labels:["inversión","inversion","btc","bitcoin","bolsa","acción","accion","crypto","fondo","myinvestor","river","kronos","cartera"]},
+  {id:"regalos",   labels:["regalo","regalos","cumpleaños","cumpleanos","presente","detalle"]},
+  {id:"pelo",      labels:["pelo","peluquería","peluqueria","corte","barbería","barberia","laser","láser","depilación","depilacion"]},
+  {id:"otros",     labels:["otros","otro","fisio","fisioterapia","médico","medico","farmacia","medicina","tablet","móvil","movil","ordenador","ropa","zapatillas","electrónica","electronica","libros","formación","formacion","gym","gimnasio"]}
 ];
 
 function detectCat(text){
   var t = text.toLowerCase();
+  var custom = S.customCats||[];
+  for(var k=0;k<custom.length;k++){
+    if(t.indexOf(custom[k].label.toLowerCase())>=0) return custom[k].id;
+  }
   for(var i=0;i<CATS_VOICE.length;i++){
     for(var j=0;j<CATS_VOICE[i].labels.length;j++){
       if(t.indexOf(CATS_VOICE[i].labels[j])>=0) return CATS_VOICE[i].id;
     }
   }
-  // Also check custom cats
-  var custom = S.customCats||[];
-  for(var k=0;k<custom.length;k++){
-    if(t.indexOf(custom[k].label.toLowerCase())>=0) return custom[k].id;
-  }
   return "otros";
 }
 
-function parseVoiceText(text){
-  // Extract amount - look for number patterns
-  var amountMatch = text.match(/(\d+(?:[.,]\d{1,2})?)\s*(?:euros?|€|eur)?/i);
-  var amount = amountMatch ? parseFloat(amountMatch[1].replace(',','.')) : 0;
-
-  // Remove amount and currency words to get concept
+function parseVoiceLocal(text){
+  var amtMatch = text.match(/(\d+(?:[.,]\d{1,2})?)\s*(?:euros?|€)?/i);
+  var amount = amtMatch ? parseFloat(amtMatch[1].replace(',','.')) : 0;
   var concept = text
-    .replace(/(\d+(?:[.,]\d{1,2})?)\s*(?:euros?|€|eur)?/gi,'')
-    .replace(/(añadir|gasto|en|de|por|el|la|los|las|un|una|unos|unas)/gi,'')
-    .trim()
-    .replace(/\s+/g,' ')
-    .trim();
-
-  // Capitalize first letter
-  if(concept) concept = concept.charAt(0).toUpperCase() + concept.slice(1);
-
+    .replace(/\d+(?:[.,]\d{1,2})?\s*(?:euros?|€)?/gi,'')
+    .replace(/(añadir|gasto|en|de|por|el|la|los|las|un|una|euros?)/gi,'')
+    .trim().replace(/\s+/g,' ').trim();
+  if(concept) concept = concept.charAt(0).toUpperCase() + concept.slice(1).toLowerCase();
   var catId = detectCat(text);
   var catObj = CATS_BASE.concat(S.customCats||[]).find(function(c){return c.id===catId;});
-
-  return {
-    catId: catId,
-    catLabel: catObj ? catObj.label : catId,
-    concept: concept || text,
-    amount: amount
-  };
+  return {catId:catId, catLabel:catObj?catObj.label:catId, concept:concept||text, amount:amount};
 }
 
 function startVoice(){
-  document.getElementById("voice-modal").classList.add("show");
-  document.getElementById("voice-transcript").textContent = 'Di algo como: "cervezas bar Vidal 12 euros ocio"';
-  document.getElementById("voice-result").classList.remove("show");
-  document.getElementById("va-save").style.display="none";
-  document.getElementById("va-record").style.display="inline-block";
-  document.getElementById("voice-status").textContent = "PULSA GRABAR PARA HABLAR";
   voiceParsed = null;
+  document.getElementById("voice-modal").classList.add("show");
+  document.getElementById("voice-result").classList.remove("show");
+  document.getElementById("va-save").style.display = "none";
+  document.getElementById("va-process").style.display = "inline-block";
+  var inp = document.getElementById("voice-input");
+  inp.value = "";
+  setTimeout(function(){ inp.focus(); }, 300);
 }
 
 function closeVoice(){
-  if(voiceRecognition){try{voiceRecognition.stop();}catch(e){}}
-  voiceRecognition = null;
   document.getElementById("voice-modal").classList.remove("show");
-  document.getElementById("mic-btn").classList.remove("recording");
+  voiceParsed = null;
 }
 
-function recordVoice(){
-  var SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if(!SpeechRec){
-    document.getElementById("voice-transcript").textContent = "⚠️ Tu navegador no soporta reconocimiento de voz. Usa Safari en iOS o Chrome.";
-    return;
+function onVoiceInput(val){
+  if(voiceTimer) clearTimeout(voiceTimer);
+  if(val.trim().length > 3){
+    voiceTimer = setTimeout(function(){ processVoiceText(val); }, 1200);
   }
-
-  voiceRecognition = new SpeechRec();
-  voiceRecognition.lang = "es-ES";
-  voiceRecognition.continuous = false;
-  voiceRecognition.interimResults = false;
-
-  document.getElementById("voice-status").textContent = "🔴 GRABANDO... HABLA AHORA";
-  document.getElementById("mic-btn").classList.add("recording");
-  document.getElementById("va-record").textContent = "⏹ Parar";
-  document.getElementById("va-record").onclick = function(){
-    try{voiceRecognition.stop();}catch(e){}
-  };
-
-  voiceRecognition.onresult = function(e){
-    var text = e.results[0][0].transcript;
-    document.getElementById("voice-transcript").textContent = '"' + text + '"';
-    document.getElementById("voice-status").textContent = "PROCESANDO...";
-    processVoiceText(text);
-  };
-
-  voiceRecognition.onerror = function(e){
-    document.getElementById("voice-status").textContent = "⚠️ ERROR: " + e.error;
-    document.getElementById("mic-btn").classList.remove("recording");
-    document.getElementById("va-record").textContent = "🎤 Grabar";
-    document.getElementById("va-record").onclick = recordVoice;
-  };
-
-  voiceRecognition.onend = function(){
-    document.getElementById("mic-btn").classList.remove("recording");
-    document.getElementById("va-record").textContent = "🎤 Grabar de nuevo";
-    document.getElementById("va-record").onclick = recordVoice;
-  };
-
-  voiceRecognition.start();
 }
 
 function processVoiceText(text){
-  // Try Claude API for smart parsing
+  if(!text || !text.trim()) return;
+  if(voiceTimer) clearTimeout(voiceTimer);
+
+  // Try Claude API first
   fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {"Content-Type": "application/json"},
     body: JSON.stringify({
       model: "claude-sonnet-4-6",
-      max_tokens: 200,
-      system: "Extrae gastos personales. Categorias: ocio, coche, inversion, regalos, pelo, otros. Responde SOLO con JSON: {catId, concept, amount}",
-      messages: [{role:'user', content: 'Texto: [' + text + ']. Devuelve JSON con catId (ocio|coche|inversion|regalos|pelo|otros), concept y amount.'}]
+      max_tokens: 150,
+      system: "Extrae gastos. Responde SOLO JSON sin texto extra: {catId,concept,amount}. Categorias: ocio,coche,inversion,regalos,pelo,otros",
+      messages: [{role:"user", content: "Gasto: " + text}]
     })
   })
   .then(function(r){return r.json();})
   .then(function(data){
     try{
-      var content = data.content && data.content[0] && data.content[0].text;
-      var clean = content.replace(/```json|```/g,'').trim();
+      var txt = data.content && data.content[0] && data.content[0].text || "";
+      var clean = txt.replace(/```[a-z]*|```/g,"").trim();
       var parsed = JSON.parse(clean);
-      if(parsed.catId && parsed.concept && parsed.amount){
+      if(parsed.catId && parsed.amount > 0){
         var catObj = CATS_BASE.concat(S.customCats||[]).find(function(c){return c.id===parsed.catId;});
-        voiceParsed = {
-          catId: parsed.catId,
-          catLabel: catObj ? catObj.label : parsed.catId,
-          concept: parsed.concept,
-          amount: parsed.amount
-        };
+        voiceParsed = {catId:parsed.catId, catLabel:catObj?catObj.label:parsed.catId, concept:parsed.concept||text, amount:parsed.amount};
         showVoiceResult(voiceParsed);
         return;
       }
     }catch(e){}
-    // Fallback to local parsing
-    voiceParsed = parseVoiceText(text);
+    voiceParsed = parseVoiceLocal(text);
     showVoiceResult(voiceParsed);
   })
   .catch(function(){
-    // Fallback to local parsing if API fails
-    voiceParsed = parseVoiceText(text);
+    voiceParsed = parseVoiceLocal(text);
     showVoiceResult(voiceParsed);
   });
 }
 
-function showVoiceResult(parsed){
-  document.getElementById("voice-status").textContent = "¿ES CORRECTO?";
-  document.getElementById("vr-cat").textContent = parsed.catLabel.toUpperCase();
-  document.getElementById("vr-concepto").textContent = parsed.concept;
-  document.getElementById("vr-importe").textContent = fmt(parsed.amount);
+function showVoiceResult(p){
+  var catObj = CATS_BASE.concat(S.customCats||[]).find(function(c){return c.id===p.catId;});
+  document.getElementById("vr-cat").textContent = (catObj?catObj.emoji+" ":"")+p.catLabel.toUpperCase();
+  document.getElementById("vr-concepto").textContent = p.concept;
+  document.getElementById("vr-importe").textContent = fmt(p.amount);
   document.getElementById("voice-result").classList.add("show");
   document.getElementById("va-save").style.display = "inline-block";
-  document.getElementById("va-record").textContent = "🔄 Repetir";
-  document.getElementById("va-record").onclick = function(){
-    document.getElementById("voice-result").classList.remove("show");
-    document.getElementById("va-save").style.display="none";
-    recordVoice();
-  };
+  document.getElementById("va-process").style.display = "none";
 }
 
 function saveVoiceGasto(){
   if(!voiceParsed || !voiceParsed.amount) return;
   var d = cur();
   if(!d.gastos[voiceParsed.catId]) d.gastos[voiceParsed.catId] = [];
-  d.gastos[voiceParsed.catId].push({
-    id: uid(),
-    concepto: voiceParsed.concept,
-    importe: voiceParsed.amount,
-    nota: ""
-  });
+  d.gastos[voiceParsed.catId].push({id:uid(), concepto:voiceParsed.concept, importe:voiceParsed.amount, nota:""});
   saveData(d);
   closeVoice();
-  // Show confirmation
   var toast = document.createElement("div");
-  toast.style.cssText = "position:fixed;top:80px;left:50%;transform:translateX(-50%);background:#1A3A1A;border:1px solid #2A5A2A;border-radius:12px;padding:10px 20px;color:#5AC45A;font-size:13px;z-index:999;white-space:nowrap;";
-  toast.textContent = "✓ " + voiceParsed.concept + " — " + fmt(voiceParsed.amount) + " añadido";
+  toast.style.cssText = "position:fixed;top:80px;left:50%;transform:translateX(-50%);background:#1A3A1A;border:1px solid #2A5A2A;border-radius:12px;padding:10px 20px;color:#5AC45A;font-size:13px;z-index:999;white-space:nowrap;box-shadow:0 4px 15px rgba(0,0,0,.4);";
+  toast.textContent = "✓ "+voiceParsed.concept+" — "+fmt(voiceParsed.amount)+" guardado";
   document.body.appendChild(toast);
-  setTimeout(function(){toast.remove();}, 3000);
+  setTimeout(function(){toast.remove();},3000);
   voiceParsed = null;
 }
 
